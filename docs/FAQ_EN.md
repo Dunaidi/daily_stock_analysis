@@ -154,9 +154,10 @@ First confirm whether `LITELLM_CONFIG` or `LLM_CHANNELS` is active, because eith
 - WeChat Work: 4KB
 - Feishu: 20KB
 - DingTalk: 20KB
+- Telegram: 4096 characters per message
 
 **Solution**:
-1. **Auto-chunking**: Latest version implements automatic long message splitting
+1. **Auto-chunking**: Telegram splits long report sections and accounts for Markdown expansion
 2. **Single stock push mode**: Set `SINGLE_STOCK_NOTIFY=true`, push immediately after each stock analysis
 3. **Brief report**: Set `REPORT_TYPE=simple` for simplified format
 

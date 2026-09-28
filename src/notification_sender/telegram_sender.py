@@ -70,7 +70,7 @@ class TelegramSender:
             # Telegram 消息最大长度 4096 字符
             max_length = 4096
             
-            if len(content) <= max_length:
+            if self._telegram_message_length(content) <= max_length:
                 # 单条消息发送
                 return self._send_telegram_message(api_url, chat_id, content, message_thread_id, timeout_seconds=timeout_seconds)
             else:
@@ -83,6 +83,14 @@ class TelegramSender:
             logger.debug(traceback.format_exc())
             return False
     
+    def _telegram_message_length(self, text: str) -> int:
+        """Count UTF-16 units before and after Markdown conversion conservatively."""
+        converted = self._convert_to_telegram_markdown(text)
+        return max(
+            len(text.encode("utf-16-le")) // 2,
+            len(converted.encode("utf-16-le")) // 2,
+        )
+
     def _send_telegram_message(
         self,
         api_url: str,
@@ -228,40 +236,35 @@ class TelegramSender:
         timeout_seconds: Optional[float] = None,
     ) -> bool:
         """分段发送长 Telegram 消息"""
-        # 按段落分割
-        sections = content.split("\n---\n")
-        
-        current_chunk = []
-        current_length = 0
         all_success = True
         chunk_index = 1
-        
-        for section in sections:
-            section_length = len(section) + 5  # +5 for "\n---\n"
-            
-            if current_length + section_length > max_length:
-                # 发送当前块
-                if current_chunk:
-                    chunk_content = "\n---\n".join(current_chunk)
-                    logger.info(f"发送 Telegram 消息块 {chunk_index}...")
-                    if not self._send_telegram_message(api_url, chat_id, chunk_content, message_thread_id, timeout_seconds=timeout_seconds):
-                        all_success = False
-                    chunk_index += 1
-                
-                # 重置
-                current_chunk = [section]
-                current_length = section_length
+        remaining = content
+
+        while remaining:
+            if self._telegram_message_length(remaining) <= max_length:
+                chunk_content, remaining = remaining, ""
             else:
-                current_chunk.append(section)
-                current_length += section_length
-        
-        # 发送最后一块
-        if current_chunk:
-            chunk_content = "\n---\n".join(current_chunk)
+                # A single report section can exceed Telegram's limit. Find the
+                # longest prefix that fits even after Markdown conversion.
+                low, high = 1, min(len(remaining), max_length)
+                while low < high:
+                    middle = (low + high + 1) // 2
+                    if self._telegram_message_length(remaining[:middle]) <= max_length:
+                        low = middle
+                    else:
+                        high = middle - 1
+
+                split_at = low
+                newline = remaining.rfind("\n", max(0, split_at - 500), split_at)
+                if newline >= 0 and self._telegram_message_length(remaining[:newline + 1]) <= max_length:
+                    split_at = newline + 1
+                chunk_content, remaining = remaining[:split_at], remaining[split_at:]
+
             logger.info(f"发送 Telegram 消息块 {chunk_index}...")
             if not self._send_telegram_message(api_url, chat_id, chunk_content, message_thread_id, timeout_seconds=timeout_seconds):
                 all_success = False
-                
+            chunk_index += 1
+
         return all_success
 
     def _send_telegram_photo(self, image_bytes: bytes) -> bool:

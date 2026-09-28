@@ -975,6 +975,30 @@ class TestTelegramSender(unittest.TestCase):
         self.assertIn("sendMessage", mock_post.call_args[0][0])
 
     @mock.patch("src.notification_sender.telegram_sender.requests.post")
+    def test_long_section_is_sent_in_bounded_chunks(self, mock_post):
+        mock_post.return_value = _response(200, {"ok": True})
+        sender = TelegramSender(_config(telegram_bot_token="BOT", telegram_chat_id="CHAT"))
+        content = "复盘" * 2500
+
+        self.assertTrue(sender.send_to_telegram(content))
+        sent = [call.kwargs["json"]["text"] for call in mock_post.call_args_list]
+        self.assertGreater(len(sent), 1)
+        self.assertEqual("".join(sent), content)
+        self.assertTrue(all(len(chunk.encode("utf-16-le")) // 2 <= 4096 for chunk in sent))
+
+    def test_chunking_accounts_for_markdown_escapes_and_emoji(self):
+        sender = TelegramSender(_config(telegram_bot_token="BOT", telegram_chat_id="CHAT"))
+        for content in ("(" * 3000, "📈" * 2500):
+            with self.subTest(content=content[0]), mock.patch.object(
+                sender, "_send_telegram_message", return_value=True
+            ) as send:
+                self.assertTrue(sender.send_to_telegram(content))
+                chunks = [call.args[2] for call in send.call_args_list]
+                self.assertGreater(len(chunks), 1)
+                self.assertEqual("".join(chunks), content)
+                self.assertTrue(all(sender._telegram_message_length(chunk) <= 4096 for chunk in chunks))
+
+    @mock.patch("src.notification_sender.telegram_sender.requests.post")
     def test_send_retries_plain_text_when_markdown_http_400(self, mock_post):
         markdown_error = _response(400)
         markdown_error.text = (

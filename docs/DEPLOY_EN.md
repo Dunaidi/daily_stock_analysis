@@ -412,13 +412,13 @@ git push
 
 ### Schedule Details
 
-Default configuration: **Monday to Friday, 18:00 Beijing Time** auto-execution
+Default configuration: **Daily at 16:17 Beijing Time**; non-trading days are skipped by the application. GitHub Actions scheduled runs can be delayed, so the workflow avoids the top of the hour.
 
 Modify time: Edit cron expression in `.github/workflows/daily_analysis.yml`:
 
 ```yaml
 schedule:
-  - cron: '0 10 * * 1-5'  # UTC time, +8 = Beijing time
+  - cron: '17 8 * * *'  # UTC time, +8 = 16:17 Beijing time
 ```
 
 Common cron examples:

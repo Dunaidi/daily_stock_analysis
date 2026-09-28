@@ -1,9 +1,9 @@
 name: 每日大盘分析
 
 on:
-  # 定时触发 - 每天香港时间 16:00 (UTC 08:00)
+  # 定时触发 - 每天香港时间 16:17 (UTC 08:17)，避开 GitHub Actions 整点拥堵
   schedule:
-    - cron: '0 8 * * *'      # UTC 08:00 = 香港时间 16:00
+    - cron: '17 8 * * *'     # UTC 08:17 = 香港时间 16:17
   
   # 手动触发
   workflow_dispatch:
